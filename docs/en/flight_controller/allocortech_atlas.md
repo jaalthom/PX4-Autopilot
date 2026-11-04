@@ -20,21 +20,23 @@ This flight controller is [manufacturer supported](../flight_controller/autopilo
 
 ## Specifications {#specifications}
 
-### Processors
+### Processor {#processor}
 
 - FMU processor: STM32H753II (Arm Cortex-M7, 480 MHz, 2 MB flash, 1 MB RAM)
 - I/O processor: STM32F103
 - Mission computer: [Toradex Verdin](https://www.toradex.com/computer-on-modules/verdin-arm-family) System on Module running Linux
   - Verdin AM62, 2 GB RAM, 16 GB eMMC
 
-### Sensors
+### Sensors {#sensors}
 
-- Bosch BMI088 IMU
-- Invensense IIM-42652 industrial IMU
-- Invensense ICM-42688-P IMU
-- Bosch BMM350 magnetometer
+- [Bosch BMI088](https://www.bosch-sensortec.com/products/motion-sensors/imus/bmi088/) IMU
+- [InvenSense IIM-42652](https://invensense.tdk.com/products/motion-tracking/6-axis/iim-42652/) industrial IMU
+- [InvenSense ICM-42688-P](https://invensense.tdk.com/products/motion-tracking/6-axis/icm-42688-p/) IMU
+- [Bosch BMM350](https://www.bosch-sensortec.com/products/motion-sensors/magnetometers/bmm350/) magnetometer
 - Amphenol [AUAV-L30D](https://www.allsensors.com/hubfs/Product-Data-Sheets/DS-432.pdf) barometer and differential pressure sensor (static and pitot ports)
 - Internal u-blox MAX-M10S GPS
+
+The three IMUs are on separate SPI buses for sensor redundancy.
 
 ### Other Features
 
@@ -92,14 +94,7 @@ They are connected by an internal Ethernet switch and share a common power suppl
 ### Electrical Data {#electrical_data}
 
 - Input voltage: 9-36 V (28 V nominal)
-- Power inputs: two, prioritised (`VIN-A` primary, `VIN-B` backup)
 - Power consumption: <20 W, varies with configuration
-
-::: warning
-The Atlas does not report battery voltage or current to PX4.
-Without a battery monitor, PX4 does not show the battery level and cannot trigger low-battery warnings or [battery failsafes](../config/safety.md#battery-failsafes).
-To enable them, connect a [DroneCAN power monitor](../dronecan/index.md) to `CAN1` and set [UAVCAN_SUB_BAT](../advanced_config/parameter_reference.md#UAVCAN_SUB_BAT) to `2`.
-:::
 
 | Parameter                             | Min   | Nom  | Max    | Unit |
 | ------------------------------------- | ----- | ---- | ------ | ---- |
@@ -127,8 +122,6 @@ To enable them, connect a [DroneCAN power monitor](../dronecan/index.md) to `CAN
 The E-fuses are set above the rated current limit.
 Do not exceed the rated limit.
 :::
-
-![Atlas power distribution block diagram](../../assets/flight_controller/allocortech_atlas/atlas_power_distribution.png)
 
 ### Mechanical Data {#mechanical_data}
 
@@ -260,15 +253,71 @@ Contact [Allocortech](https://www.allocor.tech/contact) (US).
 | Ring | `GND` |                                         |
 | Pin  | `RF`  | Optional 3.3 V bias for active antennas |
 
-## Building Firmware
+## Power {#power}
 
-To [build PX4](../dev_setup/building_px4.md) for this target:
+The Atlas has two power inputs, `VIN-A` (primary) and `VIN-B` (backup).
+It runs from `VIN-A` when it is present, and switches to `VIN-B` automatically if `VIN-A` fails.
 
-```sh
-make allocortech_atlas-v6x_default
-```
+It also supplies two 28 V outputs (`+28V_OUT-A`/`B`), which follow the input voltage, and two 5 V outputs (`+5V_OUT-A`/`B`).
+All four outputs are protected by E-fuses, and can be switched on or off with the Wasp [power output parameters](#wasp_power_outputs).
 
-## Serial Port Mapping
+![Atlas power distribution block diagram](../../assets/flight_controller/allocortech_atlas/atlas_power_distribution.png)
+
+::: warning
+The Atlas does not report battery voltage or current to PX4.
+Without a battery monitor, PX4 does not show the battery level and cannot trigger low-battery warnings or [battery failsafes](../config/safety.md#battery-failsafes).
+To enable them, connect a [DroneCAN power monitor](../dronecan/index.md) to `CAN1` and set [UAVCAN_SUB_BAT](../advanced_config/parameter_reference.md#UAVCAN_SUB_BAT) to `2`.
+:::
+
+## Voltage Ratings {#voltage_ratings}
+
+`VIN-A` and `VIN-B` each accept 9 V to 36 V (28 V nominal).
+
+The PWM and general purpose outputs are 5 V signals: the Atlas does not supply power to servos through them.
+
+## PWM Outputs {#pwm_outputs}
+
+The Atlas has 12 PWM outputs, plus 4 general purpose outputs that can also be used as PWM outputs.
+
+| Signal           | Processor     | PX4 output |
+| ---------------- | ------------- | ---------- |
+| `PWM_OUT_1`-`8`  | I/O processor | `MAIN` 1-8 |
+| `PWM_OUT_9`-`12` | FMU           | `AUX` 1-4  |
+| `GPO_1`-`4`      | FMU           | `AUX` 5-8  |
+
+[DShot](../peripherals/dshot.md) and bidirectional DShot are supported on `AUX` 1-6 only (`PWM_OUT_9`-`12`, `GPO_1` and `GPO_2`).
+
+The FMU outputs are in the following groups:
+
+- `AUX` 1-4 (Timer5): `PWM_OUT_9`-`12`
+- `AUX` 5-6 (Timer4): `GPO_1`-`2`
+- `AUX` 7-8 (Timer12): `GPO_3`-`4`
+
+All outputs within a group must use the same protocol and rate.
+
+## Telemetry Radios (Optional) {#telemetry}
+
+[Telemetry radios](../telemetry/index.md) can be connected to `TELEM1` (RS-422), `TELEM3` (RS-232) or `TELEM4` (RS-232, labelled `FREE-232` on `J1`).
+`TELEM2` is connected internally to the mission computer, and is configured for MAVLink at 57600 baud by default.
+
+::: warning
+The Atlas serial ports use RS-232 and RS-422 signal levels, not 3.3 V TTL.
+Most telemetry radios and GPS modules have TTL serial ports, and need an RS-232 or RS-422 level converter.
+:::
+
+## Ethernet {#ethernet}
+
+The Atlas has an internal 5-port Ethernet switch that connects the FMU (10/100 Mb/s), the mission computer (1 Gb/s) and three external ports on `J2` (one 1 Gb/s, two 10/100 Mb/s).
+
+PX4 is configured for Ethernet by default:
+
+- FMU IP address: `10.41.10.2` (gateway `10.41.10.254`)
+- MAVLink: UDP port `14550`, broadcast ([MAV_2_CONFIG](../advanced_config/parameter_reference.md#MAV_2_CONFIG) = `1000`)
+- [uXRCE-DDS](../middleware/uxrce_dds.md) client: connects to an agent at `10.41.10.1` ([UXRCE_DDS_CFG](../advanced_config/parameter_reference.md#UXRCE_DDS_CFG) = `1000`)
+
+See [PX4 Ethernet Setup](../advanced_config/ethernet_setup.md) for more information.
+
+## Serial Port Mapping {#serial_port_mapping}
 
 | UART   | Device     | Port                        |
 | ------ | ---------- | --------------------------- |
@@ -281,7 +330,26 @@ make allocortech_atlas-v6x_default
 | UART7  | /dev/ttyS6 | TELEM1 (RS-422)             |
 | UART8  | /dev/ttyS7 | GPS2 (RS-422)               |
 
-## Radio Control {#radio_control}
+## Building Firmware {#building_firmware}
+
+To [build PX4](../dev_setup/building_px4.md) for this target:
+
+```sh
+make allocortech_atlas-v6x_default
+```
+
+## Debug Port {#debug_port}
+
+The [PX4 System Console](../debug/system_console.md) runs on `USART3` (`/dev/ttyS2`) at 57600 baud.
+
+<!-- placeholder
+Which connectors carry the PX4 System Console and SWD (FMU and IO), whether they follow Pixhawk Debug Full or Mini, and, if not, the connector, pinout and cable.
+Good examples: agam_v6xrt.md#debug_port, ark_v6xrt.md#debug_port, cuav_pixhawk_v6x.md#debug_port
+-->
+
+## Assembly {#assembly}
+
+### Radio Control {#radio_control}
 
 RC input is connected to the I/O processor, not directly to the FMU.
 The I/O processor decodes the RC signal and passes it to PX4 over the PX4IO link (`USART6`), in the same way as on other [Pixhawk FMUv6X](../flight_controller/pixhawk6x.md) boards.
@@ -289,6 +357,20 @@ Connect the receiver to `F_RC_INPUT` (PPM, S.Bus) or `F_DSM_INPUT` (Spektrum DSM
 
 Receivers that need a bidirectional UART, such as CRSF or GHST, cannot use the I/O processor input.
 Connect them to a free serial port instead, and set [RC_PORT_CONFIG](../advanced_config/parameter_reference.md#RC_PORT_CONFIG) to that port.
+
+### GPS & Compass {#gps_compass}
+
+The Atlas has an internal u-blox MAX-M10S GPS, with its antenna connected to the `J3` SMA connector.
+The antenna bias voltage (3.3 V) is off by default: if you use an active antenna, enable it with the Wasp `gps_ant_en` parameter (see [GPS and CAN](#wasp_gps_can)).
+
+External GPS modules can be connected to `GPS1` (RS-232) or `GPS2` (RS-422) on `J1`.
+The Wasp `gps_sel_en` parameter selects whether the FMU GPS port is connected to the internal GPS (default) or an external GPS, and `pps_sel_en` does the same for the 1PPS signal.
+An external 1PPS signal (LVDS) can be connected to `GPS_PPS_P`/`N` on `J1`.
+
+The BMM350 magnetometer is inside the Atlas, on the FMU.
+The Atlas has no external I2C port, so external compasses must be [DroneCAN](../dronecan/index.md) devices.
+
+For general mounting guidance, see [Mounting a GPS/Compass](../assembly/mount_gps_compass.md).
 
 ## Wasp Configuration {#wasp}
 
@@ -318,7 +400,7 @@ The Wasp only applies the output, GPS and termination parameters at startup.
 After changing them, restart the Wasp node (for example from the DroneCAN GUI Tool) or power-cycle the Atlas.
 :::
 
-#### Power Outputs
+#### Power Outputs {#wasp_power_outputs}
 
 | Parameter   | Output       | Default |
 | ----------- | ------------ | ------- |
@@ -330,7 +412,7 @@ After changing them, restart the Wasp node (for example from the DroneCAN GUI To
 Set a parameter to `0` to disable the output, or `1` to enable it.
 The outputs cannot be switched in flight: they are set once, when the Wasp starts.
 
-#### GPS and CAN
+#### GPS and CAN {#wasp_gps_can}
 
 | Parameter             | Description                                                                      | Default |
 | --------------------- | -------------------------------------------------------------------------------- | ------- |
@@ -353,3 +435,7 @@ Reporting is off by default; enable it with `circuit_report` (a bitmask of the c
 PX4 does not use `CircuitStatus` messages, so these voltages are not shown in _QGroundControl_.
 Use a DroneCAN tool such as the [DroneCAN GUI Tool](https://dronecan.github.io/GUI_Tool/Overview/) to view them.
 :::
+
+## Further Information {#further_information}
+
+- [Allocortech Atlas Product Page](https://www.allocor.tech/atlas-product-page)
