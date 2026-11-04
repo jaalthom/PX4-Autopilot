@@ -349,6 +349,26 @@ Good examples: agam_v6xrt.md#debug_port, ark_v6xrt.md#debug_port, cuav_pixhawk_v
 
 ## Assembly {#assembly}
 
+All connections to the Atlas are made through the `J1` and `J2` D-Sub connectors (see [Pinouts](#pinouts)), so a wiring harness is needed for power, PX4 connections and peripherals.
+
+### Power Wiring {#power_wiring}
+
+Connect the primary supply to `VIN-A` and, optionally, a backup supply to `VIN-B` (see [Power](#power)).
+Each input is spread over several `J2` pins to carry the full input current, and all of them should be connected:
+
+| Signal             | `J2` pins    |
+| ------------------ | ------------ |
+| `VIN-A`            | 40-43, 60-63 |
+| `VIN-B`            | 48-51, 68-71 |
+| Input power ground | 44-47, 64-67 |
+
+### Connecting to QGroundControl {#qgc}
+
+The Atlas does not have a USB connector on the enclosure.
+To connect _QGroundControl_ over USB (for example to [load firmware](../config/firmware.md)), the harness must bring out the FMU USB signals `F_USB_P`, `F_USB_N` and `F_VBUS_SENSE` (`J2` pins 29-31).
+
+Alternatively, connect over Ethernet: give the ground station computer a static IP address on the `10.41.10.x` network that is not already in use, and _QGroundControl_ will connect automatically to the MAVLink stream that the FMU broadcasts on UDP port `14550` (see [Ethernet](#ethernet)).
+
 ### Radio Control {#radio_control}
 
 RC input is connected to the I/O processor, not directly to the FMU.
@@ -371,6 +391,19 @@ The BMM350 magnetometer is inside the Atlas, on the FMU.
 The Atlas has no external I2C port, so external compasses must be [DroneCAN](../dronecan/index.md) devices.
 
 For general mounting guidance, see [Mounting a GPS/Compass](../assembly/mount_gps_compass.md).
+
+### Safety Switch {#safety_switch}
+
+A safety switch and its LED can be connected to `F_FMU_SAFETY_IN` and `F_FMU_nSAFETY_LED` (`J2` pins 53-54).
+PX4 does not require a safety switch by default.
+To make it a precondition for arming, set [CBRK_IO_SAFETY](../advanced_config/parameter_reference.md#CBRK_IO_SAFETY) to `0` (see [Arm, Disarm, Prearm Configuration](../advanced_config/prearm_arm_disarm.md#arming-sequence-pre-arm-mode-safety-button)).
+
+### CAN Peripherals {#can}
+
+[DroneCAN](../dronecan/index.md) peripherals such as ESCs, power monitors and compasses can be connected to `CAN1` (`J2` pins 18-19).
+
+`CAN2` (`J2` pins 73-74) is shared with the internal [Wasp](#wasp), which uses node ID `100` by default.
+If you connect other devices to `CAN2`, make sure that none of them use the Wasp's node ID.
 
 ## Wasp Configuration {#wasp}
 
