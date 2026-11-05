@@ -29,10 +29,10 @@ This flight controller is [manufacturer supported](../flight_controller/autopilo
 
 ### Sensors {#sensors}
 
-- [Bosch BMI088](https://www.bosch-sensortec.com/products/motion-sensors/imus/bmi088/) IMU
+- [Bosch BMI088](https://www.bosch-sensortec.com/en/products/motion-sensors/imus/bmi088/) IMU
 - [InvenSense IIM-42652](https://invensense.tdk.com/products/motion-tracking/6-axis/iim-42652/) industrial IMU
 - [InvenSense ICM-42688-P](https://invensense.tdk.com/products/motion-tracking/6-axis/icm-42688-p/) IMU
-- [Bosch BMM350](https://www.bosch-sensortec.com/products/motion-sensors/magnetometers/bmm350/) magnetometer
+- [Bosch BMM350](https://www.bosch-sensortec.com/en/products/motion-sensors/magnetometers/bmm350) magnetometer
 - Amphenol [AUAV-L30D](https://www.allsensors.com/hubfs/Product-Data-Sheets/DS-432.pdf) barometer and differential pressure sensor (static and pitot ports)
 - Internal u-blox MAX-M10S GPS
 
